@@ -15,14 +15,16 @@ class Topic(Base):
     name: Mapped[str] = mapped_column(nullable=False, unique=True)
 
     reviews: Mapped[List["Review"]] = relationship(
-        back_populates="topic"
+        back_populates="topic",
+        cascade="delete,delete-orphan"
     )
 
 class TimeInterval(Base):
     __tablename__ = "time_interval"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    interval: Mapped[str] = mapped_column(nullable=False, unique=True)
+    interval: Mapped[int] = mapped_column(nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(nullable=False, unique=True)
 
     reviews: Mapped[List["Review"]] = relationship(
         back_populates="time_interval"
