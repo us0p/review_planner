@@ -3,12 +3,13 @@ from controller import Controller
 from db import Database
 
 if __name__ == "__main__":
-    db = Database()
-    db._init_time_intervals()
-
-    controller = Controller(db)
     cli = CLI()
     namespace = cli.parse()
+
+    db = Database(namespace.debug)
+    db._init_time_intervals()
+    controller = Controller(db)
+
     match namespace.command:
         case "add":
             controller.add(namespace.topic)

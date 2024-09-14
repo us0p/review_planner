@@ -14,6 +14,13 @@ class CLI:
 
         subparsers = parser.add_subparsers()
 
+        parser.add_argument(
+            "-d",
+            "--debug",
+            action="store_true",
+            help="Enable debus options."
+        )
+
         add = subparsers.add_parser(
             "add",
             help="Add a new topic, and create first review entry."

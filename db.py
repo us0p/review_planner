@@ -1,8 +1,9 @@
 from typing import Optional, Sequence
 from datetime import date
+import os
 
-from sqlalchemy import create_engine, select, desc
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import Engine, create_engine, select, desc
+from sqlalchemy.orm import Session, joinedload, sessionmaker
 
 from models import Base, Review, TimeInterval, Topic
 
@@ -15,87 +16,82 @@ class MetaDB(type):
         return cls._instances[cls]
 
 class Database(metaclass=MetaDB):
-    def __init__(self):
-        self.engine = create_engine(
-            "sqlite+pysqlite:///reviews.db",
-            echo=False
+    _engine: Engine
+    _Session: sessionmaker[Session]
+    _debug: bool
+
+    def __init__(self, debug: bool):
+        self._debug = debug
+        self._engine = create_engine(
+            self._get_absolute_path(),
+            echo=True if self._debug else False
         )
+        self._Session = sessionmaker(self._engine)
 
-        Base.metadata.create_all(self.engine)
-        pass
+        Base.metadata.create_all(self._engine)
 
-    def update_topic(self, topic_id: int) -> Optional[date]:
-        with Session(self.engine) as session:
-            reviews = session.execute(
+    def _get_absolute_path(self):
+        sqlite_dialect_driver = "sqlite+pysqlite://"
+        db_file_name = "reviews.db"
+        if self._debug:
+            return f"{sqlite_dialect_driver}/{db_file_name}"
+        
+        absolute_path = f"/home/{os.getlogin()}/.local/share/review_planner"
+        try:
+            os.mkdir(absolute_path)
+        finally:
+            return f"{sqlite_dialect_driver}/{absolute_path}/{db_file_name}"
+
+    def update_last_review_topic_id(
+        self,
+        topic_id: int
+    ) -> Optional[Review]:
+        with self._Session() as session:
+            review = session.execute(
                 select(Review)
                 .where(Review.topic_id == topic_id)
                 .options(joinedload(Review.time_interval))
                 .order_by(desc(Review.id))
-            ).scalars().fetchall()
-
-            if not reviews:
-                return None
-
-            last_review = reviews[0]
-            last_review.completed = True
-            today = date.today()
-
-            if date.fromordinal(date.toordinal(today) - 7) >= last_review.review_at:
-                review = Review(
-                    completed=False,
-                    review_at=date.fromordinal(
-                        date.toordinal(
-                            today
-                        ) + last_review.time_interval.interval
-                    ),
-                    time_interval=last_review.time_interval,
-                    topic_id=topic_id
-                )
-                session.add(review)
-                session.commit()
-                return review.review_at
-                
-
-            if last_review.interval_id == 3:
-                session.commit()
-                return None
-
-            next_interval = session.execute(
-                select(TimeInterval)
-                .where(TimeInterval.id == last_review.interval_id + 1)
             ).scalar()
 
-            if not next_interval:
-                print("Database not initialized.")
+            if not review:
                 return None
 
+            review.completed = True
+            session.commit()
+            session.refresh(review)
+            return review
+
+    def update_topic(
+        self,
+        topic_id: int,
+        review_at: date,
+        interval_id: int
+    ) -> Review:
+        with self._Session() as session:
             review = Review(
                 completed=False,
-                review_at=date.fromordinal(
-                    date.toordinal(
-                        today
-                    ) + next_interval.interval
-                ),
-                time_interval=next_interval,
+                review_at=review_at,
+                interval_id=interval_id,
                 topic_id=topic_id
             )
             session.add(review)
             session.commit()
-            return review.review_at
+            session.refresh(review)
+            return review
 
     def delete_topic(self, topic_id: int) -> Optional[Topic]:
-        with Session(self.engine) as session:
+        with self._Session.begin() as session:
             topic = session.get(Topic, topic_id)
 
             if not topic:
                 return None
 
             session.delete(topic)
-            session.commit()
             return topic
 
     def get_topic(self, topic_id: int) -> Optional[Topic]:
-        with Session(self.engine) as session:
+        with self._Session() as session:
             return session.execute(
                 select(Topic)
                 .where(Topic.id == topic_id)
@@ -106,27 +102,33 @@ class Database(metaclass=MetaDB):
             ).scalar()
 
     def list_topics(self) -> Sequence[Topic]:
-        with Session(self.engine) as session:
+        with self._Session() as session:
             return session.execute(
                 select(Topic).order_by(Topic.name)
             ).scalars().fetchall()
 
-    def add_topic(self, topic_name: str) -> Optional[int]:
-        with Session(self.engine) as session:
-            topic = session.execute(
+    def get_topic_by_name(self, topic_name: str) -> Optional[Topic]:
+        with self._Session() as session:
+            return session.execute(
                 select(Topic)
                 .where(Topic.name == topic_name)
-            ).one_or_none()
+            ).scalar()
 
-            if topic:
-                return None
+    def get_time_interval_by_id(
+        self,
+        interval_id: int
+    ) -> Optional[TimeInterval]:
+        with self._Session() as session:
+            return session.get(TimeInterval, interval_id)
 
+    def add_topic(
+        self,
+        topic_name: str,
+        interval: TimeInterval
+    ) -> tuple[Topic, Review]:
+        with self._Session() as session:
+            session.expire_on_commit = False
             topic = Topic(name=topic_name)
-            interval = session.get(TimeInterval, 1)
-
-            if not interval:
-                print("Database not initialized")
-                return None
 
             review = Review(
                 completed=False,
@@ -138,13 +140,15 @@ class Database(metaclass=MetaDB):
             )
 
             topic.reviews.append(review)
-            session.add(topic)
-            session.add(review)
+            session.add_all([topic, review])
             session.commit()
-            return topic.id
+
+            session.refresh(topic)
+            session.refresh(review)
+            return (topic, review)
     
     def _init_time_intervals(self):
-        with Session(self.engine) as session:
+        with self._Session.begin() as session:
             intervals = session.execute(
                 select(TimeInterval)
             ).fetchall()
@@ -153,4 +157,3 @@ class Database(metaclass=MetaDB):
                 session.add(TimeInterval(id=1, interval=1, name="d+1"))
                 session.add(TimeInterval(id=2, interval=7, name="d+7"))
                 session.add(TimeInterval(id=3, interval=30, name="d+30"))
-                session.commit()

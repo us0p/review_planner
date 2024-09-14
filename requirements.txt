@@ -1,0 +1,8 @@
+altgraph==0.17.4
+greenlet==3.1.0
+packaging==24.1
+pyinstaller==6.10.0
+pyinstaller-hooks-contrib==2024.8
+SQLAlchemy==2.0.34
+tabulate==0.9.0
+typing_extensions==4.12.2

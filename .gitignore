@@ -1,3 +1,6 @@
 venv
 *pycache*
 *.db
+dist
+build
+*.spec
