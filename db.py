@@ -24,11 +24,12 @@ class Database(metaclass=MetaDB):
         Base.metadata.create_all(self.engine)
         pass
 
-    def update_topic(self, topic_id: int) -> Optional[Review]:
+    def update_topic(self, topic_id: int) -> Optional[date]:
         with Session(self.engine) as session:
             reviews = session.execute(
                 select(Review)
                 .where(Review.topic_id == topic_id)
+                .options(joinedload(Review.time_interval))
                 .order_by(desc(Review.id))
             ).scalars().fetchall()
 
@@ -36,8 +37,27 @@ class Database(metaclass=MetaDB):
                 return None
 
             last_review = reviews[0]
+            last_review.completed = True
+            today = date.today()
 
-            if not last_review.interval_id == 3:
+            if date.fromordinal(date.toordinal(today) - 7) >= last_review.review_at:
+                review = Review(
+                    completed=False,
+                    review_at=date.fromordinal(
+                        date.toordinal(
+                            today
+                        ) + last_review.time_interval.interval
+                    ),
+                    time_interval=last_review.time_interval,
+                    topic_id=topic_id
+                )
+                session.add(review)
+                session.commit()
+                return review.review_at
+                
+
+            if last_review.interval_id == 3:
+                session.commit()
                 return None
 
             next_interval = session.execute(
@@ -52,15 +72,16 @@ class Database(metaclass=MetaDB):
             review = Review(
                 completed=False,
                 review_at=date.fromordinal(
-                    date.toordinal(date.today()) + next_interval.interval
+                    date.toordinal(
+                        today
+                    ) + next_interval.interval
                 ),
                 time_interval=next_interval,
                 topic_id=topic_id
             )
-            last_review.completed = True
             session.add(review)
             session.commit()
-            return review
+            return review.review_at
 
     def delete_topic(self, topic_id: int) -> Optional[Topic]:
         with Session(self.engine) as session:

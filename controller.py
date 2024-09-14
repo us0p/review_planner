@@ -17,7 +17,7 @@ class Controller:
         if not review:
             print("No review created.")
             return
-        print(f"Next review scheduled for: {review.review_at}.")
+        print(f"Next review scheduled for: {review}.")
 
     def add(self, topic_name: str):
         topic_id = self.db.add_topic(topic_name)
