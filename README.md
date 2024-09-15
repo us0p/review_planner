@@ -5,7 +5,7 @@ technique.
 The goal of the project is to provide a simple and efficient tool to help space your
 revisions and track what need to be done and when.  
 For bether studying sessions it's indicated to also apply the 
-[active recal](https://e-student.org/active-recall-study-method/) study method during the 
+[active recall](https://e-student.org/active-recall-study-method/) study method during the 
 revisions.
 
 # Dependencies and Requirements
