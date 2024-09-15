@@ -35,7 +35,9 @@ class Controller:
             )
             print(f"Next review scheduled for: {review.review_at}.")
 
-        if last_review.id == 3:
+        intervals = self.db.get_ord_asc_intervals()
+
+        if last_review.interval_id == intervals[-1].id:
             topic = self.db.get_topic(topic_id)
             if not topic:
                 return
@@ -45,13 +47,12 @@ class Controller:
             )
             return
 
-        next_interval = self.db.get_time_interval_by_id(
-            last_review.time_interval.id + 1
-        )
+        next_interval_idx = [
+            idx for idx in range(len(intervals)) 
+            if intervals[idx].id == last_review.interval_id
+        ][0] + 1
 
-        if not next_interval:
-            print("Database not initialized")
-            return
+        next_interval = intervals[next_interval_idx]
 
         review = self.db.update_topic(
             topic_id,

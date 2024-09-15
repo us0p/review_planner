@@ -3,7 +3,7 @@ from datetime import date
 import os
 from getpass import getuser
 
-from sqlalchemy import Engine, create_engine, select, desc
+from sqlalchemy import Engine, asc, create_engine, delete, func, select, desc
 from sqlalchemy.orm import Session, joinedload, sessionmaker
 
 from models import Base, Review, TimeInterval, Topic
@@ -118,9 +118,26 @@ class Database(metaclass=MetaDB):
     def get_time_interval_by_id(
         self,
         interval_id: int
-    ) -> Optional[TimeInterval]:
+    ) -> TimeInterval:
         with self._Session() as session:
-            return session.get(TimeInterval, interval_id)
+            return session.execute(
+                select(TimeInterval)
+                .where(TimeInterval.id == interval_id)
+            ).scalar_one()
+
+    def get_ord_asc_intervals(self) -> Sequence[TimeInterval]:
+        with self._Session() as session:
+            return session.execute(
+                select(TimeInterval)
+                .order_by(asc(TimeInterval.interval))
+            ).scalars().fetchall()
+
+    def count_time_intervals(self) -> int:
+        with self._Session() as session:
+            return session.execute(
+                select(func.count())
+                .select_from(TimeInterval)
+            ).scalar_one()
 
     def add_topic(
         self,
@@ -150,11 +167,20 @@ class Database(metaclass=MetaDB):
     
     def _init_time_intervals(self):
         with self._Session.begin() as session:
+            required_intervals = [
+                TimeInterval(id=1, interval=1, name="d+1"),
+                TimeInterval(id=2, interval=7, name="d+7"),
+                TimeInterval(id=3, interval=30, name="d+30"),
+                TimeInterval(id=4, interval=14, name="d+14"),
+            ]
+
             intervals = session.execute(
                 select(TimeInterval)
             ).fetchall()
 
-            if len(intervals) == 0:
-                session.add(TimeInterval(id=1, interval=1, name="d+1"))
-                session.add(TimeInterval(id=2, interval=7, name="d+7"))
-                session.add(TimeInterval(id=3, interval=30, name="d+30"))
+            if len(intervals) != len(required_intervals):
+                session.execute(
+                    delete(TimeInterval)
+                )
+                session.add_all(required_intervals)
+

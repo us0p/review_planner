@@ -76,6 +76,6 @@ class CLI:
             self._parser.parse_args(["-h"])
 
         namespace = self._parser.parse_args(args)
-        namespace.command = args[0]
+        namespace.command = args[0] if args[0] != '-d' else args[1]
 
         return namespace
