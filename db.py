@@ -1,6 +1,7 @@
 from typing import Optional, Sequence
 from datetime import date
 import os
+from getpass import getuser
 
 from sqlalchemy import Engine, create_engine, select, desc
 from sqlalchemy.orm import Session, joinedload, sessionmaker
@@ -36,7 +37,7 @@ class Database(metaclass=MetaDB):
         if self._debug:
             return f"{sqlite_dialect_driver}/{db_file_name}"
         
-        absolute_path = f"/home/{os.getlogin()}/.local/share/review_planner"
+        absolute_path = f"/home/{getuser()}/.local/share/review_planner"
         try:
             os.mkdir(absolute_path)
         finally:
