@@ -1,0 +1,3 @@
+- add options exclusion (can pass one option or another, not both).
+- add option join (like reviewpln lr -t -nc, should return all reviews from
+  today that aren't completed).

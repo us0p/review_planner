@@ -3,10 +3,19 @@ from datetime import date
 import os
 from getpass import getuser
 
-from sqlalchemy import Engine, asc, create_engine, delete, func, select, desc
+from sqlalchemy import (
+    Engine,
+    asc,
+    create_engine,
+    delete,
+    func,
+    select,
+    desc,
+)
 from sqlalchemy.orm import Session, joinedload, sessionmaker
 
 from models import Base, Review, TimeInterval, Topic
+
 
 class MetaDB(type):
     _instances = {}
@@ -16,6 +25,7 @@ class MetaDB(type):
             cls._instances[cls] = super().__call__(*args, **kwargs)
         return cls._instances[cls]
 
+
 class Database(metaclass=MetaDB):
     _engine: Engine
     _Session: sessionmaker[Session]
@@ -24,8 +34,7 @@ class Database(metaclass=MetaDB):
     def __init__(self, debug: bool):
         self._debug = debug
         self._engine = create_engine(
-            self._get_absolute_path(),
-            echo=True if self._debug else False
+            self._get_absolute_path(), echo=True if self._debug else False
         )
         self._Session = sessionmaker(self._engine)
 
@@ -36,16 +45,69 @@ class Database(metaclass=MetaDB):
         db_file_name = "reviews.db"
         if self._debug:
             return f"{sqlite_dialect_driver}/{db_file_name}"
-        
+
         absolute_path = f"/home/{getuser()}/.local/share/review_planner"
         try:
             os.mkdir(absolute_path)
         finally:
-            return f"{sqlite_dialect_driver}/{absolute_path}/{db_file_name}"
+            return (
+                f"{sqlite_dialect_driver}/{absolute_path}/{db_file_name}"
+            )
+
+    def get_reviews_from_completed(
+        self, completed: bool
+    ) -> Sequence[Review]:
+        with self._Session() as session:
+            return (
+                session.execute(
+                    select(Review)
+                    .where(Review.completed == completed)
+                    .join(Topic)
+                    .options(
+                        joinedload(Review.topic),
+                        joinedload(Review.time_interval),
+                    )
+                    .order_by(asc(Topic.name))
+                )
+                .scalars()
+                .fetchall()
+            )
+
+    def get_reviews(self) -> Sequence[Review]:
+        with self._Session() as session:
+            return (
+                session.execute(
+                    select(Review)
+                    .join(Topic)
+                    .options(
+                        joinedload(Review.topic),
+                        joinedload(Review.time_interval),
+                    )
+                    .order_by(asc(Topic.name))
+                )
+                .scalars()
+                .fetchall()
+            )
+
+    def get_reviews_from_date(self, review_at: str) -> Sequence[Review]:
+        with self._Session() as session:
+            return (
+                session.execute(
+                    select(Review)
+                    .where(Review.review_at == review_at)
+                    .join(Topic)
+                    .options(
+                        joinedload(Review.topic),
+                        joinedload(Review.time_interval),
+                    )
+                    .order_by(asc(Topic.name))
+                )
+                .scalars()
+                .fetchall()
+            )
 
     def update_last_review_topic_id(
-        self,
-        topic_id: int
+        self, topic_id: int
     ) -> Optional[Review]:
         with self._Session() as session:
             review = session.execute(
@@ -64,17 +126,14 @@ class Database(metaclass=MetaDB):
             return review
 
     def update_topic(
-        self,
-        topic_id: int,
-        review_at: date,
-        interval_id: int
+        self, topic_id: int, review_at: date, interval_id: int
     ) -> Review:
         with self._Session() as session:
             review = Review(
                 completed=False,
                 review_at=review_at,
                 interval_id=interval_id,
-                topic_id=topic_id
+                topic_id=topic_id,
             )
             session.add(review)
             session.commit()
@@ -97,52 +156,52 @@ class Database(metaclass=MetaDB):
                 select(Topic)
                 .where(Topic.id == topic_id)
                 .options(
-                    joinedload(Topic.reviews)
-                    .joinedload(Review.time_interval)
-                )            
+                    joinedload(Topic.reviews).joinedload(
+                        Review.time_interval
+                    )
+                )
             ).scalar()
 
     def list_topics(self) -> Sequence[Topic]:
         with self._Session() as session:
-            return session.execute(
-                select(Topic).order_by(Topic.name)
-            ).scalars().fetchall()
+            return (
+                session.execute(select(Topic).order_by(Topic.name))
+                .scalars()
+                .fetchall()
+            )
 
     def get_topic_by_name(self, topic_name: str) -> Optional[Topic]:
         with self._Session() as session:
             return session.execute(
-                select(Topic)
-                .where(Topic.name == topic_name)
+                select(Topic).where(Topic.name == topic_name)
             ).scalar()
 
-    def get_time_interval_by_id(
-        self,
-        interval_id: int
-    ) -> TimeInterval:
+    def get_time_interval_by_id(self, interval_id: int) -> TimeInterval:
         with self._Session() as session:
             return session.execute(
-                select(TimeInterval)
-                .where(TimeInterval.id == interval_id)
+                select(TimeInterval).where(TimeInterval.id == interval_id)
             ).scalar_one()
 
     def get_ord_asc_intervals(self) -> Sequence[TimeInterval]:
         with self._Session() as session:
-            return session.execute(
-                select(TimeInterval)
-                .order_by(asc(TimeInterval.interval))
-            ).scalars().fetchall()
+            return (
+                session.execute(
+                    select(TimeInterval).order_by(
+                        asc(TimeInterval.interval)
+                    )
+                )
+                .scalars()
+                .fetchall()
+            )
 
     def count_time_intervals(self) -> int:
         with self._Session() as session:
             return session.execute(
-                select(func.count())
-                .select_from(TimeInterval)
+                select(func.count()).select_from(TimeInterval)
             ).scalar_one()
 
     def add_topic(
-        self,
-        topic_name: str,
-        interval: TimeInterval
+        self, topic_name: str, interval: TimeInterval
     ) -> tuple[Topic, Review]:
         with self._Session() as session:
             session.expire_on_commit = False
@@ -154,7 +213,7 @@ class Database(metaclass=MetaDB):
                     date.toordinal(date.today()) + interval.interval
                 ),
                 time_interval=interval,
-                topic=topic
+                topic=topic,
             )
 
             topic.reviews.append(review)
@@ -164,7 +223,7 @@ class Database(metaclass=MetaDB):
             session.refresh(topic)
             session.refresh(review)
             return (topic, review)
-    
+
     def _init_time_intervals(self):
         with self._Session.begin() as session:
             required_intervals = [
@@ -174,13 +233,8 @@ class Database(metaclass=MetaDB):
                 TimeInterval(id=4, interval=14, name="d+14"),
             ]
 
-            intervals = session.execute(
-                select(TimeInterval)
-            ).fetchall()
+            intervals = session.execute(select(TimeInterval)).fetchall()
 
             if len(intervals) != len(required_intervals):
-                session.execute(
-                    delete(TimeInterval)
-                )
+                session.execute(delete(TimeInterval))
                 session.add_all(required_intervals)
-

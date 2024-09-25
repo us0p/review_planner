@@ -3,16 +3,81 @@ from tabulate import tabulate
 
 from datetime import date
 
+
 class Controller:
     def __init__(self, db: Database):
         self.db = db
         self.topic_headers = ["ID", "Name"]
         self.review_headers = [
-                "ID",
-                "Review at",
-                "Interval",
-                "Completed",
+            "ID",
+            "Review at",
+            "Interval",
+            "Completed",
         ]
+        self.list_review_headers = [
+            "ID",
+            "Topic",
+            "Interval",
+            "Review at",
+            "Completed",
+        ]
+
+    def list_reviews_from_completed(self, completed: bool):
+        reviews = self.db.get_reviews_from_completed(completed)
+
+        print(
+            tabulate(
+                [
+                    [
+                        r.topic.id,
+                        r.topic.name,
+                        r.time_interval.name,
+                        r.review_at,
+                        r.completed,
+                    ]
+                    for r in reviews
+                ],
+                headers=self.list_review_headers,
+            )
+        )
+
+    def list_revies(self):
+        reviews = self.db.get_reviews()
+
+        print(
+            tabulate(
+                [
+                    [
+                        r.topic.id,
+                        r.topic.name,
+                        r.time_interval.name,
+                        r.review_at,
+                        r.completed,
+                    ]
+                    for r in reviews
+                ],
+                headers=self.list_review_headers,
+            )
+        )
+
+    def list_reviews_from_date(self, review_at: date):
+        reviews = self.db.get_reviews_from_date(date.isoformat(review_at))
+
+        print(
+            tabulate(
+                [
+                    [
+                        r.topic.id,
+                        r.topic.name,
+                        r.time_interval.name,
+                        r.review_at,
+                        r.completed,
+                    ]
+                    for r in reviews
+                ],
+                headers=self.list_review_headers,
+            )
+        )
 
     def update(self, topic_id: int):
         last_review = self.db.update_last_review_topic_id(topic_id)
@@ -21,17 +86,17 @@ class Controller:
             return
 
         today = date.today()
-        if date.fromordinal(
-            date.toordinal(today) - 7
-        ) >= last_review.review_at:
+        if (
+            date.fromordinal(date.toordinal(today) - 7)
+            >= last_review.review_at
+        ):
             review = self.db.update_topic(
                 topic_id,
                 date.fromordinal(
-                    date.toordinal(
-                        today
-                    ) + last_review.time_interval.interval
+                    date.toordinal(today)
+                    + last_review.time_interval.interval
                 ),
-                last_review.time_interval.id
+                last_review.time_interval.id,
             )
             print(f"Next review scheduled for: {review.review_at}.")
 
@@ -48,7 +113,8 @@ class Controller:
             return
 
         next_interval_idx = [
-            idx for idx in range(len(intervals)) 
+            idx
+            for idx in range(len(intervals))
             if intervals[idx].id == last_review.interval_id
         ][0] + 1
 
@@ -57,11 +123,9 @@ class Controller:
         review = self.db.update_topic(
             topic_id,
             date.fromordinal(
-                date.toordinal(
-                    today
-                ) + next_interval.interval
+                date.toordinal(today) + next_interval.interval
             ),
-            next_interval.id
+            next_interval.id,
         )
 
         print(f"Next review scheduled for: {review.review_at}.")
@@ -83,10 +147,7 @@ class Controller:
     def list(self):
         topics = self.db.list_topics()
         table = tabulate(
-            [
-                [t.id, t.name] for t in topics
-            ],
-            headers=self.topic_headers
+            [[t.id, t.name] for t in topics], headers=self.topic_headers
         )
         print(table)
 
@@ -101,14 +162,10 @@ class Controller:
         print(
             tabulate(
                 [
-                    [
-                        r.id,
-                        r.review_at,
-                        r.time_interval.name,
-                        r.completed
-                    ] for r in topic.reviews
+                    [r.id, r.review_at, r.time_interval.name, r.completed]
+                    for r in topic.reviews
                 ],
-                headers=self.review_headers
+                headers=self.review_headers,
             )
         )
 
