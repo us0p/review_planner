@@ -31,4 +31,4 @@ reviewpln -h
 
 The project uses the package [Pyinstaller](https://pyinstaller.org/en/stable/index.html) to
 bundle the modules and packages of the project as a single executable.
->The build script assumes you have ~/local/bin in your $PATH.
+>The build script assumes you have ~/local/share/bin in your $PATH.
